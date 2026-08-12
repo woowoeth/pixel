@@ -20,14 +20,36 @@ SIZE = 24
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 DEFAULT_PALETTES = {
-    "ink":     ["#00000000", "#1e1e28", "#4a4e69", "#9a8c98", "#f2e9e4"],
-    "ember":   ["#00000000", "#1e1e28", "#dc3c32", "#f5be5a", "#fafaf5"],
-    "forest":  ["#00000000", "#1b2a1f", "#3f7d46", "#8fbf6a", "#f0f7e4"],
-    "ocean":   ["#00000000", "#12233a", "#1f6f8b", "#57c4c9", "#eafcff"],
-    "grape":   ["#00000000", "#241432", "#7b2d8b", "#c86bd8", "#ffe9fb"],
-    "rust":    ["#00000000", "#2b1a12", "#a4501f", "#d9924a", "#f6e3c8"],
-    "mono":    ["#00000000", "#111111", "#555555", "#aaaaaa", "#ffffff"],
-    "candy":   ["#00000000", "#3a1c39", "#e8517f", "#ffb3c7", "#fff7f2"],
+    # 结构：0=透明 1=描边(最深)，之后每 3 个一组 = 一种材质的 暗部/基色/亮部
+    #   材质A = 2/3/4   材质B = 5/6/7   材质C = 8/9/10
+    "classic": ["#00000000", "#1a1420",
+                "#8c2b26", "#dc3c32", "#f07a52",     # A 红
+                "#a8823f", "#e8c88a", "#fff3d0",     # B 奶油/木
+                "#2f5d34", "#4e9450", "#8fbf6a"],    # C 绿
+    "steel":   ["#00000000", "#12131c",
+                "#3f4a63", "#6f7d9c", "#b9c6df",     # A 钢
+                "#7a4a1e", "#b5762f", "#e0a85c",     # B 皮革/木
+                "#7a1f2b", "#c33447", "#f0707f"],    # C 红宝石
+    "potion":  ["#00000000", "#141024",
+                "#2a4f8c", "#3f7fd4", "#7fc4ff",     # A 蓝液
+                "#5c4a6b", "#8f7aa8", "#cfc2dd",     # B 玻璃
+                "#8a6a1f", "#c9a13c", "#f2dc93"],    # C 金
+    "forest":  ["#00000000", "#0f1c10",
+                "#2f5d34", "#4e9450", "#8fbf6a",     # A 叶
+                "#4a2f1c", "#7a5233", "#a87c52",     # B 树干
+                "#a83c2b", "#e05a3a", "#ffb07a"],    # C 果实
+    "candy":   ["#00000000", "#2b0f26",
+                "#8c2559", "#e0517f", "#ff9ab5",     # A 粉
+                "#2f6b8c", "#4fa8cf", "#a8e4ff",     # B 蓝
+                "#b58a1f", "#f0cd4b", "#fff3c4"],    # C 黄
+    "slime":   ["#00000000", "#0d1f14",
+                "#1f6b3a", "#35a854", "#7ee081",     # A 史莱姆
+                "#5a3b7a", "#8a5fb0", "#c9a4e8",     # B 紫
+                "#a89a2f", "#e0d24f", "#fff9b0"],    # C 黄
+    "mono":    ["#00000000", "#0d0d0d",
+                "#3a3a3a", "#707070", "#a8a8a8",
+                "#5a5a5a", "#8f8f8f", "#c8c8c8",
+                "#2a2a2a", "#606060", "#f2f2f2"],
 }
 
 
@@ -134,6 +156,55 @@ class Canvas:
         for x, y in add:
             self.g[y][x] = c
 
+
+    # ---- 手艺原语 / craft primitives ----
+    def autoshade(self, base=3, lx=-1, ly=-1):
+        """按光源方向塑形，而不是沿着轮廓糊一圈（避免"枕头阴影"）。
+        base = 该材质的基色索引；暗部取 base-1，亮部取 base+1。
+        lx,ly = 光来的方向，默认 (-1,-1) 左上。"""
+        shadow, light = base - 1, base + 1
+        src = [row[:] for row in self.g]
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if src[y][x] != base:
+                    continue
+                nx, ny = x + lx, y + ly          # 朝光的一侧
+                bx, by = x - lx, y - ly          # 背光的一侧
+                lit = not (0 <= nx < SIZE and 0 <= ny < SIZE and src[ny][nx] != 0)
+                dark = not (0 <= bx < SIZE and 0 <= by < SIZE and src[by][bx] != 0)
+                if lit:
+                    self.g[y][x] = light
+                elif dark:
+                    self.g[y][x] = shadow
+
+    def selout(self, dark=1, lit_skip=True, lx=-1, ly=-1):
+        """选择性描边（sel-out）：背光侧描深边，迎光侧留空或只留一点，
+        比一圈死黑自然得多。"""
+        nb = ((1, 0), (-1, 0), (0, 1), (0, -1))
+        add = []
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if self.g[y][x] != 0:
+                    continue
+                touching = [(dx, dy) for dx, dy in nb
+                            if 0 <= x + dx < SIZE and 0 <= y + dy < SIZE and self.g[y + dy][x + dx] not in (0, dark)]
+                if not touching:
+                    continue
+                # 该空像素位于主体的哪一侧：朝光则跳过
+                toward_light = any((dx, dy) == (-lx, -ly) for dx, dy in touching)
+                if lit_skip and toward_light and len(touching) == 1:
+                    continue
+                add.append((x, y))
+        for x, y in add:
+            self.g[y][x] = dark
+
+    def silhouette(self, c=1):
+        """把所有非空像素压成一个颜色 —— 剪影测试用。"""
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if self.g[y][x]:
+                    self.g[y][x] = c
+
     def clear(self):
         self.g = [[0] * SIZE for _ in range(SIZE)]
 
@@ -152,8 +223,16 @@ class Canvas:
                         if 0 <= x + dx < SIZE and 0 <= y + dy < SIZE and self.g[y + dy][x + dx])
                 if n == 0:
                     stray += 1
+        dbl = 0
+        for y in range(SIZE):
+            for x in range(SIZE - 1):
+                if self.g[y][x] == 1 and self.g[y][x + 1] == 1:
+                    up = (y > 0 and self.g[y - 1][x] not in (0, 1) and self.g[y - 1][x + 1] not in (0, 1))
+                    dn = (y < SIZE - 1 and self.g[y + 1][x] not in (0, 1) and self.g[y + 1][x + 1] not in (0, 1))
+                    if up and dn:
+                        dbl += 1
         return {
-            "filled": filled, "coverage": round(filled / (SIZE * SIZE), 3),
+            "filled": filled, "double_outline": dbl, "coverage": round(filled / (SIZE * SIZE), 3),
             "bbox": [min(xs), min(ys), max(xs), max(ys)] if xs else None,
             "margin": [min(xs), min(ys), SIZE - 1 - max(xs), SIZE - 1 - max(ys)] if xs else None,
             "colors_used": sorted(set(v for v in flat if v)),
@@ -169,7 +248,7 @@ def run_script(src: str) -> Canvas:
     cv = Canvas()
     ns = {k: getattr(cv, k) for k in
           ("pix", "rect", "ellipse", "line", "tri", "mirror_x", "mirror_y",
-           "replace", "shift", "outline", "clear")}
+           "replace", "shift", "outline", "selout", "autoshade", "silhouette", "clear")}
     errs = []
     for i, raw in enumerate(src.splitlines(), 1):
         ln = raw.strip()
@@ -268,8 +347,13 @@ def warnings(st: dict) -> list:
     m = st["margin"]
     if m and max(m) - min(m) >= 6:
         w.append(f"主体偏了（四边边距 {m}），居中会更稳")
-    if len(st["colors_used"]) <= 2:
-        w.append("只用了 1-2 种颜色，加高光(4)和辅色(3)会立刻有层次")
+    used = set(st["colors_used"])
+    if len(used) <= 2:
+        w.append("只用了 1-2 个索引 —— 缺明暗阶梯。用 autoshade() 按光源塑形（暗部2/基色3/亮部4）")
+    elif not ({2, 4} & used):
+        w.append("没有暗部(2)或亮部(4) —— 形体是平的，调一次 autoshade() 就有体积")
+    if st.get("double_outline", 0) > 2:
+        w.append(f"有 {st['double_outline']} 处双描边伪影（两块描边挨在一起形成黑条），挪开或改用 selout()")
     if st["stray_pixels"] > 3:
         w.append(f"有 {st['stray_pixels']} 个孤立像素，像噪点，清掉或连成形状")
     return w

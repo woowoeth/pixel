@@ -1,0 +1,8 @@
+ellipse(7, 11, 5, 5, 3)
+ellipse(7, 11, 2, 2, 0)
+rect(11, 10, 10, 3, 3)
+rect(16, 13, 2, 3, 3)
+rect(19, 13, 2, 4, 3)
+autoshade(3)
+pix(4, 8, 4)
+selout(1)

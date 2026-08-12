@@ -1,7 +1,7 @@
 # pixelpad · 24×24 原生像素画 Agent Skill
 
 <p align="center">
-  <img src="out/mushroom-reveal.gif" width="200" alt="逐像素显影动画">
+  <img src="out/_gallery.png" width="480" alt="参考件"><br><img src="out/mushroom-reveal.gif" width="160" alt="逐像素显影动画">
 </p>
 
 在 24×24 画布上画**原生像素图**——每个像素直接落一个调色板索引，而不是"生成大图再降采样"。所以边缘是硬的，每一格都有人管。
@@ -36,12 +36,13 @@ pix(15, 6, 4)
 outline(1)                 # 描边
 ```
 
-原语：`rect · ellipse · tri · line · pix · mirror_x · mirror_y · replace · shift · outline`
-调色板索引固定语义：`0` 透明 · `1` 描边 · `2` 主色 · `3` 辅色 · `4` 高光
+原语：`rect · ellipse · tri · line · pix · autoshade · selout · mirror_x · shift · silhouette`
+
+调色板按**材质分组，每组三阶**（暗部/基色/亮部）：`0` 透明 · `1` 描边 · `2-4` 材质A · `5-7` 材质B · `8-10` 材质C
 
 ## 为什么它能画得像样
 
-**不是靠一次成型，是靠回环。** SKILL.md 教 agent 的流程是：规划部件 → 写十来行原语 → 渲染 → **打开 PNG 真的看一眼** → 按自检报告和肉眼判断修 → 再渲染。通常两轮，从"一团色"变成"能用"。
+**靠手艺规则 + 回环。** 编码进 SKILL.md 的五条：剪影测试先行、光源统一（左上）、每材质三色阶、选择性描边而非一圈死黑、躲开双描边/孤立像素/锯齿乱步。 SKILL.md 教 agent 的流程是：规划部件 → 写十来行原语 → 渲染 → **打开 PNG 真的看一眼** → 按自检报告和肉眼判断修 → 再渲染。通常两轮，从"一团色"变成"能用"。
 
 引擎每次渲染都会打印自检：覆盖率、四边边距、用色数、孤立像素数，并直接点出问题（主体太小 / 偏了 / 太平 / 有噪点）。
 
