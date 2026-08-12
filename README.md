@@ -1,7 +1,7 @@
 # pixelpad · 24×24 原生像素画 Agent Skill
 
 <p align="center">
-  <img src="out/_gallery.png" width="480" alt="参考件"><br><img src="out/mushroom-reveal.gif" width="160" alt="逐像素显影动画">
+  <img src="out/_gallery.png" width="480" alt="参考件"><br><img src="out/key-reveal.gif" width="160" alt="逐像素显影动画">
 </p>
 
 在 24×24 画布上画**原生像素图**——每个像素直接落一个调色板索引，而不是"生成大图再降采样"。所以边缘是硬的，每一格都有人管。

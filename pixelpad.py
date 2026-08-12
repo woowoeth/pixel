@@ -105,13 +105,55 @@ class Canvas:
             return
         for j in range(SIZE):
             for i in range(SIZE):
-                if ((i - cx) / rx) ** 2 + ((j - cy) / ry) ** 2 <= 1.0:
+                # +0.35 修正：不加的话小半径会画成菱形/十字，不是像素圆
+                if ((i - cx) / (rx + 0.35)) ** 2 + ((j - cy) / (ry + 0.35)) ** 2 <= 1.0:
                     self.pix(i, j, c)
 
     def line(self, x0, y0, x1, y1, c):
-        n = int(max(abs(x1 - x0), abs(y1 - y0))) or 1
-        for t in range(n + 1):
-            self.pix(round(x0 + (x1 - x0) * t / n), round(y0 + (y1 - y0) * t / n), c)
+        """像素级直线：把步长**均匀**摊开（2-2-2 或 1-2-1-2），
+        避免 1-3-1-1-4 那种乱步 —— 乱步在像素画里一眼就脏。"""
+        x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+        dx, dy = x1 - x0, y1 - y0
+        sx, sy = (1 if dx >= 0 else -1), (1 if dy >= 0 else -1)
+        adx, ady = abs(dx), abs(dy)
+        if adx == 0 and ady == 0:
+            self.pix(x0, y0, c)
+            return
+        if adx >= ady:                      # 以 x 为主轴
+            runs = ady + 1
+            base, extra = divmod(adx + 1, runs)
+            x = x0
+            for k in range(runs):
+                n = base + (1 if k < extra else 0)
+                for _ in range(n):
+                    self.pix(x, y0 + sy * k, c)
+                    x += sx
+        else:
+            runs = adx + 1
+            base, extra = divmod(ady + 1, runs)
+            y = y0
+            for k in range(runs):
+                n = base + (1 if k < extra else 0)
+                for _ in range(n):
+                    self.pix(x0 + sx * k, y, c)
+                    y += sy
+
+    def dot(self, x, y, size, c):
+        """小特征专用（眼睛/铆钉/斑点）。size 1=单点 2=2x2 3=去角3x3 4=去角4x4。
+        小半径别用 ellipse —— 那会画出十字。"""
+        x, y, size = int(x), int(y), int(size)
+        if size <= 1:
+            self.pix(x, y, c)
+        elif size == 2:
+            self.rect(x, y, 2, 2, c)
+        elif size == 3:
+            self.rect(x, y + 1, 3, 1, c)
+            self.rect(x + 1, y, 1, 3, c)
+            self.pix(x, y, c) if False else None
+            self.rect(x, y + 1, 3, 1, c)
+        else:
+            self.rect(x + 1, y, size - 2, size, c)
+            self.rect(x, y + 1, size, size - 2, c)
 
     def tri(self, x0, y0, x1, y1, x2, y2, c):
         """实心三角形（重心坐标填充）。"""
@@ -210,26 +252,31 @@ class Canvas:
             elif t < -0.15 and d <= shade:
                 self.g[y][x] = base - 1
 
-    def selout(self, dark=1, lit_skip=True, lx=-1, ly=-1):
-        """选择性描边（sel-out）：背光侧描深边，迎光侧留空或只留一点，
-        比一圈死黑自然得多。"""
+    def selout(self, dark=1, lx=-1, ly=-1, colored=True):
+        """选择性描边（sel-out）：背光侧用最深色描边，**迎光侧改用该材质自己的暗色**，
+        比一圈死黑柔和自然（Derek Yu 的做法）。colored=False 则退化为单色描边。"""
         nb = ((1, 0), (-1, 0), (0, 1), (0, -1))
-        add = []
+        add = {}
         for y in range(SIZE):
             for x in range(SIZE):
                 if self.g[y][x] != 0:
                     continue
-                touching = [(dx, dy) for dx, dy in nb
-                            if 0 <= x + dx < SIZE and 0 <= y + dy < SIZE and self.g[y + dy][x + dx] not in (0, dark)]
-                if not touching:
+                touch = [(dx, dy, self.g[y + dy][x + dx]) for dx, dy in nb
+                         if 0 <= x + dx < SIZE and 0 <= y + dy < SIZE and self.g[y + dy][x + dx] not in (0, dark)]
+                if not touch:
                     continue
-                # 该空像素位于主体的哪一侧：朝光则跳过
-                toward_light = any((dx, dy) == (-lx, -ly) for dx, dy in touching)
-                if lit_skip and toward_light and len(touching) == 1:
-                    continue
-                add.append((x, y))
-        for x, y in add:
-            self.g[y][x] = dark
+                # 该描边像素在主体的迎光侧还是背光侧
+                toward_light = any((dx, dy) == (-lx, -ly) for dx, dy, _ in touch)
+                if toward_light and len(touch) == 1:
+                    if not colored:
+                        continue
+                    v = touch[0][2]
+                    grp = (v - 2) // 3
+                    add[(x, y)] = max(2, grp * 3 + 2)      # 该材质的暗色
+                else:
+                    add[(x, y)] = dark
+        for (x, y), c in add.items():
+            self.g[y][x] = c
 
     def aa(self, edge=1, half=2):
         """手动抗锯齿：找出长度 >=2 的阶梯台阶，在拐角补一个半调像素。
@@ -322,7 +369,7 @@ def run_script(src: str) -> Canvas:
     cv = Canvas()
     ns = {k: getattr(cv, k) for k in
           ("pix", "rect", "ellipse", "line", "tri", "mirror_x", "mirror_y",
-           "replace", "shift", "outline", "selout", "autoshade", "aa", "silhouette", "clear")}
+           "replace", "shift", "outline", "selout", "autoshade", "aa", "dot", "silhouette", "clear")}
     errs = []
     for i, raw in enumerate(src.splitlines(), 1):
         ln = raw.strip()
