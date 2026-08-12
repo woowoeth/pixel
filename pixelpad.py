@@ -19,38 +19,51 @@ import argparse, json, os, sys
 SIZE = 24
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+import colorsys
+
+
+def ramp(hex_base: str, shadow_pull=0.30, light_pull=0.26):
+    """从一个基色生成三阶：暗部/基色/亮部。
+    专业做法不是单纯调明度 —— **阴影色相朝紫蓝靠、高光色相朝黄靠**（模拟日光），
+    走最短角度路径，所以冷色暖色都成立。"""
+    h = hex_base.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    hh, ss, vv = colorsys.rgb_to_hsv(r, g, b)
+
+    def toward(cur, target, amt):
+        d = (target - cur + 0.5) % 1.0 - 0.5      # 最短路径
+        return (cur + d * amt) % 1.0
+
+    SHADOW_HUE, LIGHT_HUE = 0.72, 0.13            # 紫蓝 / 暖黄
+    sh = colorsys.hsv_to_rgb(toward(hh, SHADOW_HUE, shadow_pull),
+                             min(1, ss * 1.15 + 0.05), max(0, vv * 0.52))
+    li = colorsys.hsv_to_rgb(toward(hh, LIGHT_HUE, light_pull),
+                             max(0, ss * 0.68 - 0.04), min(1, vv * 1.20 + 0.18))
+    f = lambda t: "#" + "".join(f"{int(round(c * 255)):02x}" for c in t)
+    return [f(sh), "#" + h, f(li)]
+
+
+def build(outline: str, *bases: str):
+    """0=透明 1=描边，之后每个基色展开成三阶。"""
+    out = ["#00000000", outline]
+    for b in bases:
+        out += ramp(b)
+    return out
+
+
 DEFAULT_PALETTES = {
-    # 结构：0=透明 1=描边(最深)，之后每 3 个一组 = 一种材质的 暗部/基色/亮部
-    #   材质A = 2/3/4   材质B = 5/6/7   材质C = 8/9/10
-    "classic": ["#00000000", "#1a1420",
-                "#8c2b26", "#dc3c32", "#f07a52",     # A 红
-                "#a8823f", "#e8c88a", "#fff3d0",     # B 奶油/木
-                "#2f5d34", "#4e9450", "#8fbf6a"],    # C 绿
-    "steel":   ["#00000000", "#12131c",
-                "#3f4a63", "#6f7d9c", "#b9c6df",     # A 钢
-                "#7a4a1e", "#b5762f", "#e0a85c",     # B 皮革/木
-                "#7a1f2b", "#c33447", "#f0707f"],    # C 红宝石
-    "potion":  ["#00000000", "#141024",
-                "#2a4f8c", "#3f7fd4", "#7fc4ff",     # A 蓝液
-                "#5c4a6b", "#8f7aa8", "#cfc2dd",     # B 玻璃
-                "#8a6a1f", "#c9a13c", "#f2dc93"],    # C 金
-    "forest":  ["#00000000", "#0f1c10",
-                "#2f5d34", "#4e9450", "#8fbf6a",     # A 叶
-                "#4a2f1c", "#7a5233", "#a87c52",     # B 树干
-                "#a83c2b", "#e05a3a", "#ffb07a"],    # C 果实
-    "candy":   ["#00000000", "#2b0f26",
-                "#8c2559", "#e0517f", "#ff9ab5",     # A 粉
-                "#2f6b8c", "#4fa8cf", "#a8e4ff",     # B 蓝
-                "#b58a1f", "#f0cd4b", "#fff3c4"],    # C 黄
-    "slime":   ["#00000000", "#0d1f14",
-                "#1f6b3a", "#35a854", "#7ee081",     # A 史莱姆
-                "#5a3b7a", "#8a5fb0", "#c9a4e8",     # B 紫
-                "#a89a2f", "#e0d24f", "#fff9b0"],    # C 黄
-    "mono":    ["#00000000", "#0d0d0d",
-                "#3a3a3a", "#707070", "#a8a8a8",
-                "#5a5a5a", "#8f8f8f", "#c8c8c8",
-                "#2a2a2a", "#606060", "#f2f2f2"],
+    # 0=透明 1=描边，之后每 3 个 = 一种材质的 暗部/基色/亮部（色相偏移生成）
+    "classic": build("#1a1420", "#dc3c32", "#e8c88a", "#4e9450"),   # 红 / 奶油 / 绿
+    "steel":   build("#12131c", "#7d8caa", "#b5762f", "#c33447"),   # 钢 / 皮革 / 红宝石
+    "potion":  build("#141024", "#3f7fd4", "#8f7aa8", "#c9a13c"),   # 蓝液 / 玻璃 / 金
+    "forest":  build("#0f1c10", "#4e9450", "#7a5233", "#e05a3a"),   # 叶 / 干 / 果
+    "candy":   build("#2b0f26", "#e0517f", "#4fa8cf", "#f0cd4b"),   # 粉 / 蓝 / 黄
+    "slime":   build("#0d1f14", "#35a854", "#8a5fb0", "#e0d24f"),   # 绿 / 紫 / 黄
+    "dusk":    build("#191428", "#7b5ea7", "#e0794f", "#4a9bb5"),   # 紫 / 橙 / 青
+    "mono":    build("#0d0d0d", "#707070", "#8f8f8f", "#606060"),
 }
+
+
 
 
 def load_palettes() -> dict:
@@ -158,24 +171,44 @@ class Canvas:
 
 
     # ---- 手艺原语 / craft primitives ----
-    def autoshade(self, base=3, lx=-1, ly=-1):
-        """按光源方向塑形，而不是沿着轮廓糊一圈（避免"枕头阴影"）。
-        base = 该材质的基色索引；暗部取 base-1，亮部取 base+1。
-        lx,ly = 光来的方向，默认 (-1,-1) 左上。"""
-        shadow, light = base - 1, base + 1
-        src = [row[:] for row in self.g]
-        for y in range(SIZE):
-            for x in range(SIZE):
-                if src[y][x] != base:
-                    continue
-                nx, ny = x + lx, y + ly          # 朝光的一侧
-                bx, by = x - lx, y - ly          # 背光的一侧
-                lit = not (0 <= nx < SIZE and 0 <= ny < SIZE and src[ny][nx] != 0)
-                dark = not (0 <= bx < SIZE and 0 <= by < SIZE and src[by][bx] != 0)
-                if lit:
-                    self.g[y][x] = light
-                elif dark:
-                    self.g[y][x] = shadow
+    def autoshade(self, base=3, lx=-1, ly=-1, rim=1, shade=2):
+        """方向性塑形：迎光侧压一道细亮边、背光侧压一片较厚暗部，
+        亮暗带**贴着轮廓弯**（球体的明暗交界本来就是弧），但只出现在对应的一侧 ——
+        既不是沿轮廓糊一圈的"枕头阴影"，也不是把形体切一刀的直线条带。
+        base 为该材质基色；亮部 base+1，暗部 base-1。"""
+        pts = [(x, y) for y in range(SIZE) for x in range(SIZE) if self.g[y][x] == base]
+        if len(pts) < 6:
+            return
+        cx = sum(p[0] for p in pts) / len(pts)
+        cy = sum(p[1] for p in pts) / len(pts)
+        n = (lx * lx + ly * ly) ** 0.5 or 1
+        ux, uy = lx / n, ly / n
+        S = set(pts)
+        # 到形状边界的内距离（BFS 洋葱层）
+        dist, frontier, d = {}, [p for p in pts if any(
+            (p[0] + dx, p[1] + dy) not in S for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))], 1
+        for p in frontier:
+            dist[p] = 1
+        while frontier:
+            d += 1
+            nxt = []
+            for x, y in frontier:
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    q = (x + dx, y + dy)
+                    if q in S and q not in dist:
+                        dist[q] = d
+                        nxt.append(q)
+            frontier = nxt
+        for (x, y) in pts:
+            # 该像素在形体上偏向光源还是背光（用重心方向判断）
+            vx, vy = x - cx, y - cy
+            m = (vx * vx + vy * vy) ** 0.5 or 1
+            t = (vx * ux + vy * uy) / m
+            d = dist.get((x, y), 9)
+            if t > 0.30 and d <= rim:
+                self.g[y][x] = base + 1
+            elif t < -0.15 and d <= shade:
+                self.g[y][x] = base - 1
 
     def selout(self, dark=1, lit_skip=True, lx=-1, ly=-1):
         """选择性描边（sel-out）：背光侧描深边，迎光侧留空或只留一点，
@@ -197,6 +230,34 @@ class Canvas:
                 add.append((x, y))
         for x, y in add:
             self.g[y][x] = dark
+
+    def aa(self, edge=1, half=2):
+        """手动抗锯齿：找出长度 >=2 的阶梯台阶，在拐角补一个半调像素。
+        铁律：45°(1x1 步进)和直线不加 —— 加了只会糊。"""
+        add = []
+        for y in range(1, SIZE - 1):
+            runs, x = [], 0
+            while x < SIZE:
+                if self.g[y][x] == edge:
+                    x0 = x
+                    while x < SIZE and self.g[y][x] == edge:
+                        x += 1
+                    runs.append((x0, x - 1))
+                else:
+                    x += 1
+            for x0, x1 in runs:
+                if x1 - x0 + 1 < 2:            # 1px 台阶 = 45°，跳过
+                    continue
+                for corner in (x0, x1):
+                    for dy in (-1, 1):
+                        ny = y + dy
+                        if 0 <= ny < SIZE and self.g[ny][corner] == 0:
+                            side = corner + (1 if corner == x1 else -1)
+                            if 0 <= side < SIZE and self.g[y][side] == 0:
+                                add.append((corner, ny))
+        for x, y in set(add):
+            if self.g[y][x] == 0:
+                self.g[y][x] = half
 
     def silhouette(self, c=1):
         """把所有非空像素压成一个颜色 —— 剪影测试用。"""
@@ -231,8 +292,21 @@ class Canvas:
                     dn = (y < SIZE - 1 and self.g[y + 1][x] not in (0, 1) and self.g[y + 1][x + 1] not in (0, 1))
                     if up and dn:
                         dbl += 1
+        band = 0
+        for y in range(1, SIZE - 1):
+            run = 0
+            for x in range(SIZE):
+                v = self.g[y][x]
+                same_above = self.g[y - 1][x] == v
+                if v not in (0, 1) and not same_above and self.g[y - 1][x] not in (0,):
+                    run += 1
+                    if run >= 10:
+                        band += 1
+                        run = 0
+                else:
+                    run = 0
         return {
-            "filled": filled, "double_outline": dbl, "coverage": round(filled / (SIZE * SIZE), 3),
+            "filled": filled, "double_outline": dbl, "banding": band, "coverage": round(filled / (SIZE * SIZE), 3),
             "bbox": [min(xs), min(ys), max(xs), max(ys)] if xs else None,
             "margin": [min(xs), min(ys), SIZE - 1 - max(xs), SIZE - 1 - max(ys)] if xs else None,
             "colors_used": sorted(set(v for v in flat if v)),
@@ -248,7 +322,7 @@ def run_script(src: str) -> Canvas:
     cv = Canvas()
     ns = {k: getattr(cv, k) for k in
           ("pix", "rect", "ellipse", "line", "tri", "mirror_x", "mirror_y",
-           "replace", "shift", "outline", "selout", "autoshade", "silhouette", "clear")}
+           "replace", "shift", "outline", "selout", "autoshade", "aa", "silhouette", "clear")}
     errs = []
     for i, raw in enumerate(src.splitlines(), 1):
         ln = raw.strip()
@@ -352,6 +426,8 @@ def warnings(st: dict) -> list:
         w.append("只用了 1-2 个索引 —— 缺明暗阶梯。用 autoshade() 按光源塑形（暗部2/基色3/亮部4）")
     elif not ({2, 4} & used):
         w.append("没有暗部(2)或亮部(4) —— 形体是平的，调一次 autoshade() 就有体积")
+    if st.get("banding", 0) > 3:
+        w.append(f"检测到 {st['banding']} 处条带(banding)：明暗交界沿轮廓走成等宽长线，眼睛会看出假边。用 autoshade() 的形体塑形，别手工沿边描")
     if st.get("double_outline", 0) > 2:
         w.append(f"有 {st['double_outline']} 处双描边伪影（两块描边挨在一起形成黑条），挪开或改用 selout()")
     if st["stray_pixels"] > 3:
