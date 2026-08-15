@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#fafafa" media="(prefers-color-scheme:light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme:dark)">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>像素图鉴 PIXELDEX · pixelpad</title>
+<meta name="description" content="输入一个词，当场画一张 16×16 像素图。45 枚手绘图样，可导出 PNG，全部在浏览器里完成。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23fafafa'/%3E%3Crect x='2' y='2' width='5' height='5' fill='%230a0a0a'/%3E%3Crect x='9' y='9' width='5' height='5' fill='%230a0a0a'/%3E%3C/svg%3E">
+<style>
+:root{
+  color-scheme:light dark;
+  --ink:#0a0a0a; --ink-70:#404040; --ink-50:#666666; --ink-30:#b3b3b3;
+  --hairline:#e5e5e5; --surface:#ffffff; --bg:#fafafa; --tint:#f0f0f0;
+  --cta-fill:#0a0a0a; --cta-text:#ffffff;
+  --plate:#ffffff; --chk-a:#ffffff; --chk-b:#ececec;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px;
+  --fs-micro:10px; --fs-caption:11px; --fs-body:13px; --fs-strong:14px; --fs-heading:16px; --fs-display:20px;
+  --h-sm:28px; --h-md:36px; --h-lg:46px;
+  --r-block:8px; --r-card:16px;
+  --shadow-card:0 1px 2px rgba(10,10,10,.03),0 6px 20px rgba(10,10,10,.06);
+  --shadow-cta:0 1px 2px rgba(10,10,10,.10),0 4px 14px rgba(10,10,10,.12);
+  --font:'Inter','Noto Sans CJK SC','PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);
+  font-size:var(--fs-strong);line-height:1.65;-webkit-font-smoothing:antialiased}
+.caps{letter-spacing:.07em}
+.wrap{max-width:920px;margin:0 auto;padding:0 var(--sp-5)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+header{border-bottom:1px solid var(--hairline);background:var(--bg);position:sticky;top:0;z-index:5}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);height:60px}
+.mark{display:flex;align-items:center;gap:var(--sp-3);text-decoration:none;color:inherit}
+.glyph{width:20px;height:20px;display:grid;grid-template:repeat(2,1fr)/repeat(2,1fr);flex:none;border:1px solid var(--hairline)}
+.glyph i{display:block}
+.glyph i:nth-child(1),.glyph i:nth-child(4){background:var(--ink)}
+.mark b{font-size:var(--fs-heading);font-weight:700}
+.mark s{text-decoration:none;color:var(--ink-50);font-size:var(--fs-body)}
+#count{font-size:var(--fs-caption);color:var(--ink-50);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+.hero{padding:var(--sp-6) 0 0}
+.eyebrow{font-size:var(--fs-caption);font-weight:700;color:var(--ink-50);margin:0 0 var(--sp-4)}
+h1{margin:0 0 var(--sp-4);font-size:clamp(26px,5.4vw,36px);line-height:1.22;font-weight:700;letter-spacing:-.02em}
+.lede{margin:0;font-size:var(--fs-body);color:var(--ink-50);max-width:36em}
+.lede em{font-style:normal;color:var(--ink-70);font-weight:700}
+
+.studio{display:grid;gap:var(--sp-5);padding:var(--sp-6) 0 0}
+@media(min-width:820px){.studio{grid-template-columns:360px 1fr;align-items:start;gap:var(--sp-6)}}
+
+.stage{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:var(--sp-4)}
+.frame{position:relative;width:100%;aspect-ratio:1/1;border-radius:var(--r-block);overflow:hidden;
+  background-color:var(--chk-a);
+  background-image:conic-gradient(var(--chk-b) 0 25%,transparent 0 50%,var(--chk-b) 0 75%,transparent 0);
+  background-size:25% 25%}
+.frame canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+.grid-ov{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .18s ease-out;
+  background-image:linear-gradient(rgba(10,10,10,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(10,10,10,.14) 1px,transparent 1px);
+  background-size:6.25% 6.25%}
+.frame.grid .grid-ov{opacity:1}
+.stagefoot{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
+  padding-top:var(--sp-3);font-size:var(--fs-caption);color:var(--ink-50);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+#step{font-weight:700;color:var(--ink-70)}
+
+.panel{display:grid;gap:var(--sp-5)}
+.lab{display:block;font-size:var(--fs-caption);font-weight:700;color:var(--ink-50);margin-bottom:var(--sp-2)}
+.entry{display:flex;gap:var(--sp-2)}
+input[type=text]{flex:1;min-width:0;height:var(--h-lg);background:var(--tint);border:0;color:var(--ink);
+  font-family:var(--font);font-size:var(--fs-heading);padding:0 var(--sp-4);border-radius:var(--r-block);outline:none}
+input[type=text]::placeholder{color:var(--ink-50)}
+input[type=text]:focus{box-shadow:inset 0 0 0 2px var(--ink);background:var(--surface)}
+
+button{font-family:var(--font);cursor:pointer;border:0;transition:transform .18s ease-out}
+button:active{transform:scale(.96)}
+.go{height:var(--h-lg);padding:0 var(--sp-5);border-radius:calc(var(--h-lg)/2);
+  background:var(--cta-fill);color:var(--cta-text);font-size:var(--fs-strong);font-weight:700;
+  box-shadow:var(--shadow-cta);white-space:nowrap}
+
+.row{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.tog{height:var(--h-md);padding:0 var(--sp-4);border-radius:calc(var(--h-md)/2);
+  background:var(--tint);color:var(--ink-70);font-size:var(--fs-body);font-weight:700}
+.tog[aria-pressed=true]{background:var(--ink);color:var(--cta-text)}
+
+.ramp{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.ramp div{width:var(--h-md);height:var(--h-md);border-radius:var(--r-block);box-shadow:0 0 0 1px var(--hairline)}
+
+.note{font-size:var(--fs-body);color:var(--ink-50);min-height:2.6em;margin:0}
+.note b{color:var(--ink);font-weight:700}
+.note .tag{display:inline-flex;align-items:center;height:var(--h-sm);padding:0 var(--sp-3);
+  border-radius:calc(var(--h-sm)/2);background:var(--ink);color:var(--cta-text);
+  font-size:var(--fs-caption);font-weight:700;margin-right:var(--sp-2)}
+.note .tag.new{background:var(--tint);color:var(--ink-70)}
+
+.out{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center}
+select{height:var(--h-md);border-radius:var(--r-block);background:var(--tint);color:var(--ink);border:0;
+  font-family:var(--font);font-size:var(--fs-body);font-weight:700;padding:0 var(--sp-3);outline:none}
+.mini{height:var(--h-md);padding:0 var(--sp-4);border-radius:calc(var(--h-md)/2);
+  background:var(--tint);color:var(--ink-70);font-size:var(--fs-body);font-weight:700}
+#dl{background:var(--ink);color:var(--cta-text)}
+
+section{padding:var(--sp-6) 0 0}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-4);
+  margin-bottom:var(--sp-4);padding-bottom:var(--sp-3);border-bottom:1px solid var(--hairline)}
+.sechead h2{margin:0;font-size:var(--fs-heading);font-weight:700}
+.sechead span{font-size:var(--fs-caption);color:var(--ink-50);font-weight:700}
+
+.chips{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.chip-b{height:var(--h-sm);padding:0 var(--sp-3);border-radius:calc(var(--h-sm)/2);
+  background:var(--tint);color:var(--ink-70);font-size:var(--fs-body)}
+.chip-b:hover{background:var(--ink);color:var(--cta-text)}
+
+.shelfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:var(--sp-2)}
+.slot{background:var(--surface);border-radius:var(--r-block);padding:0;position:relative;
+  aspect-ratio:1/1;overflow:hidden;box-shadow:var(--shadow-card)}
+.slot canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
+.slot em{position:absolute;left:0;right:0;bottom:0;font-style:normal;font-size:var(--fs-micro);
+  background:var(--ink);color:var(--cta-text);padding:2px var(--sp-1);
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:center}
+.empty{color:var(--ink-50);font-size:var(--fs-body);margin:0}
+
+footer{border-top:1px solid var(--hairline);margin-top:var(--sp-6);padding:var(--sp-5) 0 var(--sp-6)}
+.foot{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-5);justify-content:space-between;
+  font-size:var(--fs-caption);color:var(--ink-50)}
+.foot a{color:var(--ink-70)}
+
+/* ---------- 深色模式 ----------
+   中性阶整条翻转；但像素图自带深色描边，落在深底上会消失，
+   所以画布/缩略图始终保留一块"亮版"，像修图软件的透明棋盘那样不跟着变暗。
+   深色下阴影不可见，卡片分层改用 1px 描边环（用 box-shadow 做，不占布局）。 */
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#f2f2f2; --ink-70:#c4c4c4; --ink-50:#9a9a9a; --ink-30:#5a5a5a;
+    --hairline:#2a2a2a; --surface:#161616; --bg:#0d0d0d; --tint:#232323;
+    --cta-fill:#f2f2f2; --cta-text:#0d0d0d;
+    --plate:#e6e6e6; --chk-a:#e6e6e6; --chk-b:#d2d2d2;
+    --shadow-card:0 0 0 1px var(--hairline);
+    --shadow-cta:0 0 0 1px rgba(255,255,255,.10);
+  }
+}
+
+.slot canvas{background:var(--plate)}
+
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="mark" href="https://github.com/woowoeth/pixelpad"><span class="glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b>pixelpad</b><s>/ 像素图鉴</s></a>
+    <div id="count">16×16</div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <p class="eyebrow"><span class="caps">PIXELDEX</span></p>
+    <h1>输入一个词，给它画一张 16×16。</h1>
+    <p class="lede">词库里有就直接调出手绘图样；词里含收录的字词也算数（<em>深夜加班</em> 取「加班」画电脑）。都对不上时给一枚由字形推出的印记——那枚<em>不描述这个词</em>，只是它的专属记号。</p>
+  </div>
+
+  <div class="studio">
+    <div class="stage">
+      <div class="frame" id="frame">
+        <canvas id="cv" width="512" height="512" role="img" aria-label="生成的像素图"></canvas>
+        <div class="grid-ov"></div>
+      </div>
+      <div class="stagefoot">
+        <span id="meta">种子 —— · 16×16</span>
+        <span id="step">待输入</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div>
+        <label class="lab" for="word">要画的词</label>
+        <div class="entry">
+          <input id="word" type="text" placeholder="猫、深夜加班、运气……" autocomplete="off" spellcheck="false" maxlength="24">
+          <button class="go" id="go">生成</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="tog" id="tGrid" aria-pressed="false">网格</button>
+        <button class="tog" id="tVar">换一版</button>
+        <button class="tog" id="tRand">随机词</button>
+      </div>
+
+      <div>
+        <span class="lab">用色</span>
+        <div class="ramp" id="ramp"></div>
+      </div>
+
+      <p class="note" id="note" aria-live="polite">先敲一个词，什么词都行。</p>
+
+      <div>
+        <span class="lab">导出</span>
+        <div class="out">
+          <select id="scale" aria-label="导出尺寸">
+            <option value="16">256 px</option>
+            <option value="32" selected>512 px</option>
+            <option value="64">1024 px</option>
+          </select>
+          <select id="bg" aria-label="导出背景">
+            <option value="clear" selected>透明底</option>
+            <option value="paper">白底</option>
+          </select>
+          <button class="mini" id="dl">下载 PNG</button>
+          <button class="mini" id="cp">复制图片</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="sechead"><h2>试试这些</h2><span class="caps">01</span></div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>画过的</h2><span class="caps">02</span></div>
+    <div class="shelfgrid" id="shelf"></div>
+    <p class="empty" id="shelfEmpty">还是空的。生成第一张，它会留在这里。</p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span>图鉴收录 <span id="libn">—</span> 枚手绘图样，覆盖不到的词退回字形印记</span>
+    <span><a href="https://github.com/woowoeth/pixelpad">pixelpad</a> · 全部在浏览器里完成，不上传任何东西</span>
+  </div>
+</footer>
+
+<script src="./engine.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
