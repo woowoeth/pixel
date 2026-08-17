@@ -146,6 +146,9 @@ footer{border-top:1px solid var(--hairline);margin-top:var(--sp-6);padding:var(-
 .slot canvas{background:var(--plate)}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* 触达底线：文字型链接视觉尺寸不变，靠行高补到 24px */
+footer a,.foot a,.mini a{display:inline-block;min-height:24px;line-height:24px}
 </style>
 </head>
 <body>
